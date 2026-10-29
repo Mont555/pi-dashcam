@@ -218,3 +218,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Recordings and test output - never commit video
+recordings/
+*.h264
+*.mp4
+reports/
