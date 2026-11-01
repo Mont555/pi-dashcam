@@ -7,7 +7,7 @@ CLIP_SECONDS = 60
 
 # Storage Settings
 RECORDING_DIR = "/home/pi/recordings"
-MIN_FREE_BYTES = 2147483648
+MIN_FREE_BYTES = 2000000000
 
 # GPS Settings
 GPS_PORT = "/dev/ttyACM0"

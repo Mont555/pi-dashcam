@@ -1,6 +1,6 @@
 import shutil
 from pathlib import Path
-from dashcam import config
+import config
 
 def free_bytes(folder):
     return shutil.disk_usage(folder).free

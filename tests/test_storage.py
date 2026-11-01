@@ -1,6 +1,4 @@
-from pathlib import Path
-from dashcam import config
-from dashcam import storage 
+import storage 
 
 def make_files(folder, *names):
     for date in names:
