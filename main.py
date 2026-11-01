@@ -14,7 +14,7 @@ def main():
     try:
         rec.start()
         while rec.ffmpeg_process.poll() is None:
-            storage.delete_old_clips(folder, config.MIN_FREE_BYTES)
+            storage.delete_old_clips(folder)
             time.sleep(10)
         print(f"ffmpeg exited with code {rec.ffmpeg_process.returncode}")
     except KeyboardInterrupt:
