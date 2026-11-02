@@ -41,14 +41,14 @@ class Recorder:
             height, width = m.array.shape[:2]
             cv2.rectangle(m.array, (0, height - 36), (width, height), (0, 0, 0, 255), -1)
             cv2.putText(m.array, text, (10, height - 10), 
-                        cv2.FONT_HERSHEY_SIMPLEX, config.STATUS_BAR_FONT_SCALE,
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.8,
                         (255, 255, 255, 255), 2, cv2.LINE_AA)
         with MappedArray(request, "lores") as m:
             height, width = m.array.shape[:2]
-            cv2.rectangle(m.array, (0, height - 36), (width, height), (0, 0, 0, 255), -1)
-            cv2.putText(m.array, text, (10, height - 10), 
-                        cv2.FONT_HERSHEY_SIMPLEX, config.STATUS_BAR_FONT_SCALE,
-                        (255, 255, 255, 255), 2, cv2.LINE_AA)
+            cv2.rectangle(m.array, (0, height - 24), (width, height), 0, -1)
+            cv2.putText(m.array, text, (6, height - 7), 
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5,
+                        255, 1, cv2.LINE_AA)
             
     def start(self):
         from picamera2 import Picamera2, Preview
