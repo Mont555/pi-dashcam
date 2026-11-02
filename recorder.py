@@ -7,7 +7,12 @@ LORES_BAR = 24   # status bar height on the screen preview
     
 def mic_plugged_in():
     output = subprocess.run(["arecord", "-l"], capture_output=True, text=True).stdout
-    return "USB" in output 
+    for line in output.splitlines():
+        if line.startswith("card") and "USB" in line:
+            card = line.split(":")[0].split()[1]
+            device = line.split("device")[1].split(":")[0].strip()
+            return f"plughw:{card},{device}"
+    return None
 
 class Recorder:
     def __init__(self, folder):
@@ -85,7 +90,7 @@ class Recorder:
             import numpy as np
             self._cv2, self._np, self._MappedArray = cv2, np, MappedArray
  
-        self.mic = config.MIC_DEVICE if mic_plugged_in() else None
+        self.mic = mic_plugged_in()
         self.ffmpeg_process = subprocess.Popen(self.ffmpeg_command(), stdin=subprocess.PIPE)
         self.camera = Picamera2()
  
