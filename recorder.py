@@ -41,7 +41,7 @@ class Recorder:
         self.camera = Picamera2()
         self.camera.configure(self.camera.create_video_configuration(
             main={"size": (config.WIDTH, config.HEIGHT)},
-            lores={"size": (config.PREVIEW_WIDTH, config.PREVIEW_HEIGHT)},
+            lores={"size": (config.SCREEN_WIDTH, config.SCREEN_HEIGHT)},
             display="lores",
             controls={"FrameRate": config.FRAMERATE,
                       "AfMode": controls.AfModeEnum.Manual,
