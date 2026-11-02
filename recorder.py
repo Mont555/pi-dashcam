@@ -59,7 +59,7 @@ class Recorder:
             display="main",
             controls={"FrameRate": config.FRAMERATE,
                       "AfMode": controls.AfModeEnum.Manual,
-                      "LensPosition": 0.0,},
+                      "LensPosition": config.LENS_POSITION,},
         ))
         if config.STATUS_BAR:
             self.camera.pre_callback = self.draw_status_bar
