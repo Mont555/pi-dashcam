@@ -44,9 +44,10 @@ class Recorder:
                         cv2.FONT_HERSHEY_SIMPLEX, 0.8,
                         (255, 255, 255, 255), 2, cv2.LINE_AA)
         with MappedArray(request, "lores") as m:
-            height, width = m.array.shape[:2]
-            cv2.rectangle(m.array, (0, height - 24), (width, height), 0, -1)
-            cv2.putText(m.array, text, (6, height - 7), 
+            height = config.SCREEN_HEIGHT
+            width = config.SCREEN_WIDTH
+            cv2.rectangle(m.array, (0, height - 24), (width, height - 1), 0, -1)
+            cv2.putText(m.array, text, (6, height - 7),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5,
                         255, 1, cv2.LINE_AA)
             
