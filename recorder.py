@@ -47,7 +47,7 @@ class Recorder:
                       "AfMode": controls.AfModeEnum.Manual,
                       "LensPosition": 0.0,},
         ))
-        if Preview:
+        if config.PREVIEW:
             self.camera.start_preview(Preview.DRM, x=config.PREVIEW_X, y=config.PREVIEW_Y, width=config.SCREEN_WIDTH, height=config.SCREEN_HEIGHT)
         encoder = H264Encoder(bitrate=config.BITRATE, repeat=True, iperiod=config.FRAMERATE)
         self.camera.start_recording(encoder, FileOutput(self.ffmpeg_process.stdin))
