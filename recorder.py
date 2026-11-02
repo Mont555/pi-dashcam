@@ -41,7 +41,7 @@ class Recorder:
         if now != self.status_second:
             self.status_second = now
             clock = time.strftime("%Y-%m-%d  %H:%M:%S", time.localtime(now))
-            mic = "MIC ON" if self.mic_on else "MIC OFF"
+            mic = "MIC ON" if self.mic else "MIC OFF"
             self.status_text = f"REC {clock} {mic}"
         with MappedArray(request, "main") as m:
             frame = m.array
