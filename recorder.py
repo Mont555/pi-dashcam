@@ -12,8 +12,6 @@ class Recorder:
         self.camera = None
         self.mic = None
         self.ffmpeg_process = None
-        self.status_second = None
-        self.status_text = ""
         
     def ffmpeg_command(self):
         start = ["ffmpeg", "-loglevel", "error"]
@@ -36,21 +34,13 @@ class Recorder:
     def draw_status_bar(self, request):
         import cv2
         from picamera2 import MappedArray
-
-        now = int(time.time())
-        if now != self.status_second:
-            self.status_second = now
-            clock = time.strftime("%Y-%m-%d  %H:%M:%S", time.localtime(now))
-            mic = "MIC ON" if self.mic else "MIC OFF"
-            self.status_text = f"REC {clock} {mic}"
+        
+        mic = "MIC ON" if self.mic else "MIC OFF"
+        text = time.strftime(f"REC %Y-%m-%d %H:%M:%S {mic}")
         with MappedArray(request, "main") as m:
-            frame = m.array
-            frame_height, frame_width = frame.shape[:2]
-            bar_height = config.STATUS_BAR_HEIGHT
-            y_position = frame_height - bar_height
-            cv2.rectangle(frame, (0, y_position), (frame_width,  y_position + bar_height), (0, 0, 0, 255), -1)
-            text_y = y_position + int(bar_height * 0.72)
-            cv2.putText(frame, self.status_text, (10, text_y),
+            height, width = m.array.shape[:2]
+            cv2.rectangle(m.array, (0, height - 36), (width, height), (0, 0, 0, 255), -1)
+            cv2.putText(m.array, text, (10, height - 10), 
                         cv2.FONT_HERSHEY_SIMPLEX, config.STATUS_BAR_FONT_SCALE,
                         (255, 255, 255, 255), 2, cv2.LINE_AA)
 
