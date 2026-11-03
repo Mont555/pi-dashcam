@@ -1,101 +1,67 @@
-import config
 import subprocess
 import time
 
-MAIN_BAR = 36    # status bar height on the recording, in pixels
-LORES_BAR = 24   # status bar height on the screen preview
-    
-def mic_plugged_in():
-    output = subprocess.run(["arecord", "-l"], capture_output=True, text=True).stdout
-    return "USB" in output 
+import cv2
+import numpy as np
+from libcamera import controls
+from picamera2 import MappedArray, Picamera2, Preview
+from picamera2.encoders import H264Encoder
+from picamera2.outputs import FileOutput
+
+import config
+
+# One status bar per stream: (stream, frame height, bar height, font scale, thickness, padding)
+BARS = [("main", config.HEIGHT, 36, 0.8, 2, 10)]
+if config.PREVIEW:
+    BARS.append(("lores", config.SCREEN_HEIGHT, 24, 0.5, 1, 6))
+
+
+def find_usb_mic():
+    """Return the ALSA name of the first USB mic, e.g. 'plughw:2,0', or None."""
+    out = subprocess.run(["arecord", "-l"], capture_output=True, text=True).stdout
+    for line in out.splitlines():
+        if line.startswith("card") and "USB" in line:
+            card = line.split()[1].rstrip(":")
+            device = line.split("device ")[1].split(":")[0]
+            return f"plughw:{card},{device}"
+    return None
+
 
 class Recorder:
-    def __init__(self, folder):
+    def __init__(self, folder, gps=None):
         self.folder = folder
+        self.gps = gps
         self.camera = None
-        self.mic = None
         self.ffmpeg_process = None
-        # Status bar cache: redrawn once a second, copied into every frame
-        self._last_sec = None
-        self._main_bar = None
-        self._lores_bar = None
- 
-    def ffmpeg_command(self):
-        start = ["ffmpeg", "-loglevel", "error"]
-        # Sound from the USB microphone
-        audio_in = ["-f", "alsa", "-ac", "1", "-ar", str(config.AUDIO_RATE),
-                    "-thread_queue_size", "1024", "-i", self.mic]
-        # Video from the camera (pipe), already H.264 from the hardware encoder
-        video_in = ["-use_wallclock_as_timestamps", "1", "-thread_queue_size", "64",
-                    "-f", "h264", "-i", "-", "-c:v", "copy"]
-        # Processing & Compression
-        audio_out = ["-c:a", "aac", "-b:a", config.AUDIO_BITRATE]
-        # Segmenting and Crash-Proofing
-        save = ["-f", "segment", "-segment_time", str(config.CLIP_SECONDS),
-                "-reset_timestamps", "1", "-strftime", "1",
-                "-segment_format_options", "movflags=+frag_keyframe+empty_moov",
-                f"{self.folder}/%Y-%m-%d_%H-%M-%S.mp4"]
-        if self.mic:
-            return start + audio_in + video_in + audio_out + save
-        return start + video_in + save
- 
-    def _render_bars(self, now, main_stride, lores_stride):
-        # Both streams are YUV420, so we draw onto the luma (Y) plane only:
-        # 0 = black bar, 255 = white text. One small render per second.
-        cv2 = self._cv2
-        np = self._np
-        mic = "MIC ON" if self.mic else "MIC OFF"
-        text = time.strftime(f"REC %Y-%m-%d %H:%M:%S {mic}", time.localtime(now))
- 
-        bar = np.zeros((MAIN_BAR, main_stride), np.uint8)
-        cv2.putText(bar, text, (10, MAIN_BAR - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, 255, 2)
-        self._main_bar = bar
- 
-        bar = np.zeros((LORES_BAR, lores_stride), np.uint8)
-        cv2.putText(bar, text, (6, LORES_BAR - 7), cv2.FONT_HERSHEY_SIMPLEX, 0.5, 255, 1)
-        self._lores_bar = bar
- 
-    def draw_status_bar(self, request):
-        MappedArray = self._MappedArray
-        now = int(time.time())
-        with MappedArray(request, "main") as main:
-            if config.PREVIEW:
-                with MappedArray(request, "lores") as lores:
-                    if now != self._last_sec:
-                        self._last_sec = now
-                        self._render_bars(now, main.array.shape[1], lores.array.shape[1])
-                    h = config.SCREEN_HEIGHT
-                    lores.array[h - LORES_BAR:h] = self._lores_bar
-            elif now != self._last_sec:
-                self._last_sec = now
-                self._render_bars(now, main.array.shape[1], 1)
-            # In YUV420 the array is (1.5 * height) rows tall: Y plane first, then chroma.
-            h = config.HEIGHT
-            main.array[h - MAIN_BAR:h] = self._main_bar
- 
+        self.mic = None
+        self.bars = {}
+        self.bar_second = None
+
     def start(self):
-        from picamera2 import Picamera2, Preview, MappedArray
-        from picamera2.encoders import H264Encoder
-        from picamera2.outputs import FileOutput
-        from libcamera import controls
         if self.camera:
             return
-        if config.STATUS_BAR:
-            import cv2
-            import numpy as np
-            self._cv2, self._np, self._MappedArray = cv2, np, MappedArray
- 
-        self.mic = config.MIC_DEVICE if mic_plugged_in() else None
-        self.ffmpeg_process = subprocess.Popen(self.ffmpeg_command(), stdin=subprocess.PIPE)
-        self.camera = Picamera2()
- 
-        # YUV420 is what the hardware encoder takes natively, and is under half
-        # the size of the default XBGR8888 (3 MB vs 8 MB per 1080p frame). On a
-        # Pi 3 memory bandwidth is the bottleneck, so this is the biggest win.
+        self.mic = find_usb_mic()
+
+        # ffmpeg muxes the camera's H.264 (from stdin) with the mic and cuts 1-minute clips
+        audio_in = ["-f", "alsa", "-ac", "1", "-ar", str(config.AUDIO_RATE),
+                    "-thread_queue_size", "1024", "-i", self.mic] if self.mic else []
+        audio_out = ["-c:a", "aac", "-b:a", config.AUDIO_BITRATE] if self.mic else []
+        self.ffmpeg_process = subprocess.Popen([
+            "ffmpeg", "-loglevel", "error", *audio_in,
+            "-use_wallclock_as_timestamps", "1", "-thread_queue_size", "64",
+            "-f", "h264", "-i", "-", "-c:v", "copy", *audio_out,
+            "-f", "segment", "-segment_time", str(config.CLIP_SECONDS),
+            "-reset_timestamps", "1", "-strftime", "1",
+            "-segment_format_options", "movflags=+frag_keyframe+empty_moov",
+            f"{self.folder}/%Y-%m-%d_%H-%M-%S.mp4",
+        ], stdin=subprocess.PIPE)
+
+        # YUV420 is what the hardware encoder takes natively and is less than half the size of RGB
         streams = {"main": {"size": (config.WIDTH, config.HEIGHT), "format": "YUV420"}}
         if config.PREVIEW:
-            streams["lores"] = {"size": (config.SCREEN_WIDTH, config.SCREEN_HEIGHT),
-                                "format": "YUV420"}
+            streams["lores"] = {"size": (config.SCREEN_WIDTH, config.SCREEN_HEIGHT), "format": "YUV420"}
+
+        self.camera = Picamera2()
         self.camera.configure(self.camera.create_video_configuration(
             **streams,
             display="lores" if config.PREVIEW else None,
@@ -112,7 +78,27 @@ class Recorder:
         encoder = H264Encoder(bitrate=config.BITRATE, repeat=True,
                               iperiod=config.FRAMERATE * config.KEYFRAME_SECONDS)
         self.camera.start_recording(encoder, FileOutput(self.ffmpeg_process.stdin))
- 
+
+    def draw_status_bar(self, request):
+        now = int(time.time())
+        new_second = now != self.bar_second
+        self.bar_second = now
+        if new_second:      # only build the text once a second, not on every frame
+            text = time.strftime("REC %Y-%m-%d %H:%M:%S ", time.localtime(now)) + \
+                ("MIC ON" if self.mic else "MIC OFF")
+            if self.gps:
+                text += "  " + self.gps.status_text()
+
+        for stream, frame_h, bar_h, scale, thickness, pad in BARS:
+            with MappedArray(request, stream) as m:
+                if new_second:
+                    # Draw on the Y (brightness) plane only: 0 = black bar, 255 = white text
+                    bar = np.zeros((bar_h, m.array.shape[1]), np.uint8)
+                    cv2.putText(bar, text, (pad, bar_h - pad), cv2.FONT_HERSHEY_SIMPLEX,
+                                scale, 255, thickness)
+                    self.bars[stream] = bar
+                m.array[frame_h - bar_h:frame_h] = self.bars[stream]
+
     def stop(self):
         if not self.camera:
             return
