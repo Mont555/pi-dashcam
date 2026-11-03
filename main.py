@@ -1,5 +1,6 @@
 import config
 import storage
+from gps import GPS
 from recorder import Recorder
 from pathlib import Path
 import signal
@@ -10,7 +11,7 @@ def main():
     folder.mkdir(parents=True, exist_ok=True)
     signal.signal(signal.SIGTERM, signal.default_int_handler)
  
-    rec = Recorder(folder)
+    rec = Recorder(folder, gps=GPS)
     try:
         rec.start()
         while rec.ffmpeg_process.poll() is None:
