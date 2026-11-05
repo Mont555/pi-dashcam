@@ -24,3 +24,7 @@ PREVIEW_X = 0
 PREVIEW_Y = 15
 SCREEN_WIDTH = 800    
 SCREEN_HEIGHT = 450
+
+# GPS Settings
+GPS_PORT = None      
+GPS_BAUD = 9600   

@@ -9,18 +9,23 @@ import pynmea2
 import serial
 from serial.tools import list_ports
 
+import config
+
 UBLOX_VENDOR_ID = 0x1546
+CH340_VENDOR_ID = 0x1A86
 KNOTS_TO_MPH = 1.15078
 STALE_SECONDS = 3       # no valid fix for this long = GPS lost
 
 
 def find_usb_gps():
-    """Return the serial port of the first USB GPS, e.g. '/dev/ttyACM0', or None."""
+    """Return the serial port of the GPS, e.g. '/dev/ttyUSB0', or None."""
+    if config.GPS_PORT:
+        return config.GPS_PORT
     for port in list_ports.comports():
-        if port.vid == UBLOX_VENDOR_ID or "gps" in (port.description or "").lower():
+        if (port.vid in (UBLOX_VENDOR_ID, CH340_VENDOR_ID)
+                or "gps" in (port.description or "").lower()):
             return port.device
     return None
-
 
 class GPS:
     def __init__(self):
@@ -50,7 +55,7 @@ class GPS:
                 time.sleep(5)
                 continue
             try:
-                with serial.Serial(port, timeout=2) as ser:
+                with serial.Serial(port, config.GPS_BAUD, timeout=2) as ser:
                     while True:
                         self.handle_line(ser.readline())
             except Exception as e:
